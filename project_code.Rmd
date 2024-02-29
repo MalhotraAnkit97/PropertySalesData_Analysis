@@ -1,0 +1,707 @@
+---
+title: "Sultans Of Statistics MGT256 Project"
+output: html_notebook
+---
+
+MGT256 - Project for House Pricing
+
+```{r}
+housing_data_main <- read.csv("2018-property-sales-data.csv")
+
+head(housing_data_main)
+
+is.na(housing_data_main)
+
+which(is.na(housing_data_main))
+
+col_missing <- colSums(is.na(housing_data_main))
+
+# Code to remove certain columns
+housing_data_cleaned <- housing_data_main[, !(names(housing_data_main) %in% c("Taxkey", "Address", "CondoProject", "Nbhd", "Style"))]
+
+housing_data_cleaned <- housing_data_cleaned[!(housing_data_cleaned$PropType == "Vacant Land"), ]
+
+library(dplyr)
+
+# Define a function to categorize materials
+# categorize_material <- function(material) {
+#   durable_materials <- c("Brick", "Stone", "Fiber-Cement")
+#   
+#   if (material %in% durable_materials) {
+#     return("Durable Materials")
+#   } else {
+#     return("Non-Durable Materials")
+#   }
+# }
+# 
+# housing_data_cleaned <- mutate(housing_data_cleaned, Material_Category = sapply(housing_data_cleaned$material_column, categorize_material))
+
+housing_data_cleaned <- housing_data_cleaned %>%
+  mutate(material_category = case_when(
+    Extwall %in% c("Brick", "Stone", "Fiber-Cement") ~ "Durable Materials",
+    Extwall %in% c("Aluminum / Vinyl", "Block", "Frame", "Masonry / Frame", "Prem Wood", "Stucco") ~ "Non-Durable Materials",
+    TRUE ~ "Other"
+  ))
+
+
+housing_data_cleaned_cat <- housing_data_cleaned %>%
+  mutate(residential_var = case_when(PropType == "Residential" ~ 1, TRUE ~ 0),
+         commercial_var = case_when(PropType == "Commercial" ~ 1, TRUE ~ 0),
+         condo_var3 = case_when(PropType == "Condominium" ~ 1, TRUE ~ 0))
+
+# Note - We can also make a column called as durability, and 
+
+head(housing_data_cleaned_cat)
+```
+
+
+```{r}
+# Install and load necessary packages
+install.packages(c("tidyverse", "corrplot"))
+library(tidyverse)
+library(corrplot)
+
+# Load your data
+# Assuming your data is in a CSV file named 'property_data.csv'
+data <- read.csv('property_data.csv')
+
+# Display the first few rows of the dataset
+head(data)
+
+# Explore the dataset
+# Summary statistics
+summary(data)
+
+# Check for missing values
+sum(is.na(data))
+
+# Visualize correlations between variables
+correlation_matrix <- cor(data[, c('Sales_Price', 'Year_built', 'Fin_Sqft', 'Units', 'Bdrms', 'Fbath', 'Hbath', 'Lot_Size')])
+corrplot(correlation_matrix, method="color")
+
+# Visualize the distribution of the dependent variable (Sales_Price)
+hist(data$Sales_Price, main='Distribution of Sales Price', xlab='Sales Price', col='skyblue', border='black')
+
+# Visualize relationships between Sales_Price and numerical predictor variables
+numeric_vars <- c('Year_built', 'Fin_Sqft', 'Units', 'Bdrms', 'Fbath', 'Hbath', 'Lot_Size')
+for (var in numeric_vars) {
+  plot(data[, var], data$Sales_Price, main=paste('Relationship between', var, 'and Sales Price'), xlab=var, ylab='Sales Price', col='blue', pch=19)
+}
+
+# Visualize relationships between Sales_Price and categorical predictor variables
+categorical_vars <- c('PropertyType', 'Style', 'ExtWall')
+for (var in categorical_vars) {
+  boxplot(data$Sales_Price ~ data[, var], main=paste('Relationship between', var, 'and Sales Price'), xlab=var, ylab='Sales Price', col='lightblue', border='black')
+}
+
+```
+
+
+
+```{r}
+# Scatterplot matrix for numerical predictor variables
+data_for_scatters <- readxl::read_excel("2018-property-sales-data.xlsx", sheet = "regression_all_proptype")
+
+numeric_vars <- c('Year_built', 'Fin_sqft', 'Units', 'Bdrms', 'Fbath', 'Hbath', 'Lot_size', 'Sale_price')
+plotnew <- pairs(data_for_scatters[, numeric_vars], col=c('red', 'orange'), pch = 16, cex = 1.5)library(GGally)
+library(ggplot2)
+
+# ggpairs(data_for_scatters)
+
+
+
+
+# Bar plot for categorical variables
+categorical_vars <- c('PropertyType', 'Style', 'ExtWall')
+par(mfrow=c(1, length(categorical_vars)), mar=c(4, 4, 2, 1))
+for (i in 1:length(categorical_vars)) {
+  counts <- table(data[, categorical_vars[i]])
+  barplot(counts, main=categorical_vars[i], col='lightblue', border='black', ylim=c(0, max(counts) + 10))
+}
+
+# Time series plot for Sale_Date
+data_for_scatters$Sale_Date <- as.Date(data$Sale_Date, format='%Y-%m-%d')
+plot(data$Sale_Date, data$Sales_Price, type='l', col='blue', xlab='Sale Date', ylab='Sales Price', main='Time Series Plot of Sales Price')
+
+# Boxplot of Sales_Price by Nbhd
+boxplot(data$Sales_Price ~ data$Nbhd, main='Sales Price by Neighborhood', xlab='Neighborhood', ylab='Sales Price', col='lightblue', border='black', las=2)
+
+```
+
+
+```{r}
+# Correlation plot with ggplot2
+library(ggplot2)
+correlation_data <- cor(data[, c('Sales_Price', 'Year_built', 'Fin_Sqft', 'Units', 'Bdrms', 'Fbath', 'Hbath', 'Lot_Size')])
+correlation_data_long <- as.data.frame(as.table(correlation_data))
+names(correlation_data_long) <- c("Variable1", "Variable2", "Correlation")
+correlation_plot <- ggplot(correlation_data_long, aes(x=Variable1, y=Variable2, fill=Correlation)) +
+  geom_tile(color='white') +
+  scale_fill_gradient2(low='blue', high='red', mid='white', midpoint=0, limit=c(-1,1), space="Lab", name="Correlation") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+print(correlation_plot)
+
+# Density plots for numerical variables
+par(mfrow=c(2, 4), mar=c(4, 4, 2, 1))
+for (var in numeric_vars) {
+  density_plot <- density(data[, var])
+  plot(density_plot, main=paste('Density Plot of', var), col='blue', lwd=2)
+}
+
+for (i in cat_var) {
+  repeat_frequency <- table(data_for_categorical$i)
+  View(repeat_frequency)
+  repeat_proportion <- prop.table(repeat_frequency)
+  barplot(repeat_frequency)
+  abline(h=0)
+}
+
+# Violin plots for Sales_Price by PropertyType and Bdrms
+par(mfrow=c(1, 2), mar=c(4, 4, 2, 1))
+violin_plot1 <- violinplot(Sales_Price ~ PropertyType, data=data, col='lightblue', border='black', main='Violin Plot of Sales Price by PropertyType')
+violin_plot2 <- violinplot(Sales_Price ~ Bdrms, data=data, col='lightblue', border='black', main='Violin Plot of Sales Price by Bdrms')
+
+# Pair plot using ggplot2 for numerical variables
+numeric_vars_no_sale_price <- setdiff(numeric_vars, 'Sales_Price')
+pair_plot <- ggplot(data, aes(x=Sales_Price, y=data[, numeric_vars_no_sale_price])) +
+  geom_point() +
+  geom_smooth(method='lm', col='blue') +
+  labs(title='Pair Plot of Numerical Variables', x='Sales Price') +
+  theme_minimal()
+print(pair_plot)
+
+```
+
+
+```{r}
+
+data_for_heatmap <- readxl::read_excel("2018-property-sales-data.xlsx", sheet = "regression_residential_only")
+
+head(data_for_heatmap)
+
+# Load necessary libraries
+library(corrplot)
+
+# Assuming your data is in a variable named 'data'
+# Replace 'data' with your actual data frame
+
+# Select relevant numerical columns for correlation analysis
+numeric_vars <- c('Sale_price', 'Year_built', 'Fin_sqft', 'Units', 'Bdrms', 'Fbath', 'Hbath', 'Lot_size', 'material_num', 'Stories', 'Sale_month')
+
+# Calculate correlation matrix
+correlation_matrix <- cor(data_for_heatmap[, numeric_vars])
+
+# Create a heatmap
+corrplot(correlation_matrix, method="square", type="upper", tl.col="black", tl.srt=45)
+
+```
+
+```{r}
+data_for_categorical <- readxl::read_excel("2018-property-sales-data.xlsx", sheet = "preregression_all_proptype")
+
+cat_var <- c('PropType', 'Extwall', 'material_category')
+
+hist(data_for_categorical$Sale_price, breaks = 1000000,xlim = c(10000, 1200000))
+     # plot = TRUE, xlim = c(10000, 1200000))
+
+num_var 
+
+boxplot(data_for_categorical$Sale_price)
+
+
+# for (i in cat_var) {
+# repeat_frequency <- table(data_for_categorical$PropType)
+# View(repeat_frequency)
+# repeat_proportion <- prop.table(repeat_frequency)
+# barplot(repeat_proportion, grid(col = "gray", lty = "dotted")
+# )
+# abline(h=0)
+# Adding customizations
+# title(main = "Customized Bar Plot", sub = "Subtitle")
+# axis(side = 1, at = 1:length(categories), labels = categories, las = 2)  # Rotate x-axis labels
+# axis(side = 2, las = 1)  # Ensure y-axis labels are horizontal
+# grid(col = "gray", lty = "dotted")
+# }
+```
+
+```{r}
+data_for_categorical <- readxl::read_excel("2018-property-sales-data.xlsx", sheet = "preregression_all_proptype")
+
+numeric_vars <- c('Fin_sqft', 'Units', 'Bdrms', 'Fbath', 'Hbath', 'Lot_size', 'Sale_price')
+
+for (i in numeric_vars) {
+  var <- data_for_categorical$i
+  
+  hist(data_for_categorical$var)
+}
+```
+
+```{r}
+data_for_all <- readxl::read_excel("2018-property-sales-data.xlsx", sheet = "preregression_all_proptype")
+
+data_for_residential <- readxl::read_excel("2018-property-sales-data.xlsx", sheet = "preregression_residential_only")
+
+data_agani <- data.frame(
+  sales_price = data_for_all$Sale_price,
+  Fin_sqft = data_for_all$Fin_sqft
+)
+
+boxplot(data_for_all$Fin_sqft, col = c("skyblue", "lightgreen", "lightcoral"), main = "Boxplots for Different Variables")
+summary(data_for_all$Fin_sqft)
+```
+
+summary statistics of variables all proptypes : - 
+
+```{r}
+data_for_all <- readxl::read_excel("2018-property-sales-data.xlsx", sheet = "preregression_all_proptype")
+
+data_for_residential <- readxl::read_excel("2018-property-sales-data.xlsx", sheet = "preregression_residential_only")
+
+summary(data_for_residential$Fin_sqft)
+summary(data_for_residential$Lotsize)
+summary(data_for_residential$Stories)
+summary(data_for_residential$Bdrms)
+summary(data_for_residential$Fbath)
+summary(data_for_residential$Hbath)
+summary(data_for_residential$Sale_price)
+
+boxplot(data_for_residential$Bdrms, data_for_residential$Stories, data_for_residential$Fbath, data_for_residential$Hbath, data_for_residential$Units, labels)
+
+
+
+boxplot(data_for_residential$Lotsize)
+boxplot(data_for_residential$Stories)
+boxplot(data_for_residential$Bdrms)
+boxplot(data_for_residential$Fbath)
+boxplot(data_for_residential$Hbath)
+boxplot(data_for_residential$Sale_price) #mot important new slide
+```
+All proptypes : 
+
+
+```{r}
+options(scipen = 999)
+
+data_for_all <- readxl::read_excel("2018-property-sales-data.xlsx", sheet = "regression_all_proptype")
+
+data_for_all$residential_num <- as.factor(data_for_all$residential_num)
+data_for_all$commercial_num <- as.factor(data_for_all$commercial_num)
+data_for_all$condominium_num <- as.factor(data_for_all$condominium_num)
+
+model_1 <- lm(Sale_price~residential_num+commercial_num+condominium_num+material_num+Stories+Nr_of_rms+Fin_sqft+Units, data = data_for_all)
+summary(model_1
+        )
+
+model_2 <- lm(Sale_price~residential_num+commercial_num+condominium_num+material_num+Stories+Nr_of_rms+Fin_sqft+Units+Bdrms+Fbath+Hbath+Sale_month, data = data_for_all)
+summary(model_2)
+
+model_3 <- lm(Sale_price~residential_num+commercial_num+condominium_num+material_num+Stories+Nr_of_rms+Units+Bdrms+Fbath+Hbath+Lot_size+Sale_month, data = data_for_all)
+summary(model_3)
+
+model_4 <- lm(Sale_price~residential_num+commercial_num+condominium_num+material_num+Stories+Nr_of_rms+Fin_sqft+Units+Lot_size+Sale_month, data = data_for_all)
+summary(model_4)
+
+print(AIC(model_1))
+print(AIC(model_2))
+print(AIC(model_3))
+print(AIC(model_4))
+
+#model 4 is most accurate
+
+data_for_all %>% dplyr::mutate_all(as.factor) %>% str
+
+stepModel <- step(model_4)
+
+
+```
+
+```{r}
+library(caret)
+model_5 <- train(Sale_price ~ ., data = data_for_all, method = "lm")
+important_features <- varImp(model_5)
+selected_features <- predict(important_features, data_for_all)
+
+library(randomForest)
+model_6 <- randomForest(Sale_price ~ ., data = data_for_all)
+importance_m6 <- importance(model_6)
+selected_features <- rownames(importance_m6[importance_m6$MeanDecreaseGini > threshold, ])
+
+class(importance_m6)
+
+model_7 <- lm(Sale_price ~ poly(Fin_sqft, degree = 2)+Stories+Nr_of_rms+Units+Bdrms+Fbath+Hbath+Lot_size+Sale_month, data = data_for_all)
+summary(model_7)
+
+
+model_8 <- lm(Sale_price ~ poly(Fin_sqft, degree = 3)+Stories+Nr_of_rms+Units+Bdrms+Fbath+Hbath+Lot_size+Sale_month+residential_num+commercial_num+condominium_num+material_num, data = data_for_all)
+summary(model_8)
+
+model_9 <- lm(Sale_price ~ poly(Fin_sqft, degree = 3)+Stories+Nr_of_rms+Units+Bdrms+Fbath+Hbath+Lot_size+Sale_month+residential_num*commercial_num*condominium_num*material_num, data = data_for_all)
+summary(model_9)
+
+
+
+AIC(model_7b)
+AIC(model_7c)
+AIC(model_8)
+AIC(model_9)
+
+model 8 or model 9 is the best fit for now
+
+```
+
+
+Residential Only :-
+
+```{r}
+options(scipen = 999)
+
+data_for_all <- readxl::read_excel("2018-property-sales-data.xlsx", sheet = "regression_residential_only")
+
+model_1 <- lm(Sale_price~Stories+Fin_sqft+Units+material_num, data = data_for_all)
+summary(model_1
+        )
+
+model_2 <- lm(Sale_price~material_num+Stories+Fin_sqft+Units+Bdrms+Fbath+Hbath+Lot_size+Sale_month, data = data_for_all)
+summary(model_2)
+
+model_3 <- lm(Sale_price~material_num+Stories+Units+Bdrms+Fbath+Hbath+Lot_size+Sale_month, data = data_for_all)
+summary(model_3)
+
+model_4 <- lm(Sale_price~material_num+Stories+Fin_sqft+Units+Lot_size+Sale_month, data = data_for_all)
+summary(model_4)
+
+print(AIC(model_1))
+print(AIC(model_2))
+print(AIC(model_3))
+print(AIC(model_4))
+
+data_for_all %>% dplyr::mutate_all(as.factor) %>% str
+
+stepModel <- step(model_4)
+
+#model 3 is good for now
+
+
+
+library(caret)
+model_5 <- train(Sale_price ~ ., data = data_for_all, method = "lm")
+important_features <- varImp(model_5)
+selected_features <- predict(important_features, data_for_all)
+
+library(randomForest)
+model_6 <- randomForest(Sale_price ~ ., data = data_for_all)
+importance_m6 <- importance(model_6)
+selected_features <- rownames(importance_m6[importance_m6$MeanDecreaseGini > threshold, ])
+
+class(importance_m6)
+
+model_7 <- lm(Sale_price ~ poly(Fin_sqft, degree = 2)+Stories+Units+Bdrms+Fbath+Hbath+Lot_size+Sale_month, data = data_for_all)
+summary(model_7)
+
+# got adjusted R^2 as 50percent when i took a variable with the slope of 105 (which is way lesser as a contributor)
+
+model_7b <- lm(Sale_price ~ poly(Bdrms, degree = 2)+Stories+Units+Fin_sqft+Fbath+Hbath+Lot_size+Sale_month+material_num, data = data_for_all)
+summary(model_7b)
+
+model_7c <- lm(Sale_price ~ poly(Bdrms, degree = 3)+Units+Lot_size+Bdrms+Sale_month+Fbath*Hbath*Fin_sqft, data = data_for_all)
+summary(model_7c)
+
+
+model_8 <- lm(Sale_price ~ Fin_sqft+Stories+Units+Bdrms*Fbath*Hbath+Lot_size+Sale_month+material_num, data = data_for_all)
+summary(model_8)
+
+model_9 <- lm(Sale_price ~ poly(Units, degree = 2)+Stories+Units+Bdrms*Fbath*Hbath+material_num, data = data_for_all)
+summary(model_9)
+
+model_9a <- lm(Sale_price ~ poly(Fbath*Fin_sqft, degree = 2)+Stories*Units+Bdrms+Hbath+material_num+Lot_size, data = data_for_all)
+summary(model_9a)
+
+# model 7c gives us the best results for now
+
+AIC(model_7)
+AIC(model_7b)
+AIC(model_7c)
+AIC(model_8)
+AIC(model_9)
+AIC(model_9a)
+
+
+```
+
+H0 = coefficient is zero
+Ha = coefficient is not zero
+
+if p-value is very less , that means we have good evidence that the coefficient is not zero, and we have statistical evidence that it contributes to the equation / linear model / linear equation
+
+if p-value is 0.15 that means 15 percent undr the curve area, it means that we cannot say with confidence that the coeffienct is NOT 0, very less evidence, therefore that is not contributing too much, because we dont know for sure its not 0.
+
+
+
+KNN
+
+1. for all proptypes
+
+```{r}
+data_for_all_proptype <- readxl::read_excel("2018-property-sales-data.xlsx", sheet = "regression_all_proptype")
+
+train_valid_data_index <- sample(nrow(data_for_all_proptype), size=nrow(data_for_all_proptype)*0.90, replace=F)
+
+data_for_all_train_valid <- data_for_all_proptype[train_valid_data_index,]
+data_for_all_test <- data_for_all_proptype[-train_valid_data_index,]
+
+library(caret)
+myCtrl <- trainControl(method="cv",
+                       number=10)
+myGrid <- expand.grid(.k=c(1:15))
+set.seed(1)
+knn_data_for_all <- train(as.numeric(Sale_price)~., 
+                 data=data_for_all_train_valid,
+                 method="knn",
+                 trControl=myCtrl,
+                 tuneGrid=myGrid,
+                 preProc=c("center","scale"))
+
+knn_data_for_all
+
+predicted_prices <- predict(knn_data_for_all,
+        newdata=data_for_all_test,
+        type='raw') # We are predicting a numerical variable
+forecast::accuracy(predicted_prices,data_for_all_test$Sale_price)
+```
+
+2. for residential only
+
+```{r}
+data_for_all_proptype <- readxl::read_excel("2018-property-sales-data.xlsx", sheet = "regression_residential_only")
+
+# data_for_all_proptype <- readxl::read_excel("2018-property-sales-data.xlsx", sheet = "regression_all_proptype")
+
+train_valid_data_index <- sample(nrow(data_for_all_proptype), size=nrow(data_for_all_proptype)*0.90, replace=F)
+
+data_for_all_train_valid <- data_for_all_proptype[train_valid_data_index,]
+data_for_all_test <- data_for_all_proptype[-train_valid_data_index,]
+
+library(caret)
+myCtrl <- trainControl(method="cv",
+                       number=10)
+myGrid <- expand.grid(.k=c(1:15))
+set.seed(1)
+knn_data_for_all <- train(as.numeric(Sale_price)~., 
+                 data=data_for_all_train_valid,
+                 method="knn",
+                 trControl=myCtrl,
+                 tuneGrid=myGrid,
+                 preProc=c("center","scale"))
+
+knn_data_for_all
+
+predicted_prices <- predict(knn_data_for_all,
+        newdata=data_for_all_test,
+        type='raw') # We are predicting a numerical variable
+forecast::accuracy(predicted_prices,data_for_all_test$Sale_price)
+```
+
+
+After removing outliers : - 
+
+LM residential - 
+
+```{r}
+options(scipen = 999)
+
+data_for_all <- readxl::read_excel("no_outliers_2018-property-sales-data.xlsx", sheet = "regression_residential_only")
+
+model_1 <- lm(Sale_price~Stories+Fin_sqft+Units+material_num, data = data_for_all)
+summary(model_1
+        )
+
+model_2 <- lm(Sale_price~material_num+Stories+Fin_sqft+Units+Bdrms+Fbath+Hbath+Lot_size+Sale_month, data = data_for_all)
+summary(model_2)
+
+model_3 <- lm(Sale_price~material_num+Stories+Units+Bdrms+Fbath+Hbath+Lot_size+Sale_month, data = data_for_all)
+summary(model_3)
+
+model_4 <- lm(Sale_price~material_num+Stories+Fin_sqft+Units+Lot_size+Sale_month, data = data_for_all)
+summary(model_4)
+
+print(AIC(model_1))
+print(AIC(model_2))
+print(AIC(model_3))
+print(AIC(model_4))
+
+data_for_all %>% dplyr::mutate_all(as.factor) %>% str
+
+stepModel <- step(model_4)
+
+
+
+
+library(caret)
+model_5 <- train(Sale_price ~ ., data = data_for_all, method = "lm")
+important_features <- varImp(model_5)
+selected_features <- predict(important_features, data_for_all)
+
+library(randomForest)
+model_6 <- randomForest(Sale_price ~ ., data = data_for_all)
+importance_m6 <- importance(model_6)
+selected_features <- rownames(importance_m6[importance_m6$MeanDecreaseGini > threshold, ])
+
+class(importance_m6)
+
+model_7 <- lm(Sale_price ~ poly(Fin_sqft, degree = 2)+Stories+Units+Bdrms+Fbath+Hbath+Lot_size+Sale_month, data = data_for_all)
+summary(model_7)
+
+# got adjusted R^2 as 50percent when i took a variable with the slope of 105 (which is way lesser as a contributor)
+
+model_7b <- lm(Sale_price ~ poly(Bdrms, degree = 2)+Stories+Units+Fin_sqft+Fbath+Hbath+Lot_size+Sale_month+material_num, data = data_for_all)
+summary(model_7b)
+
+model_7c <- lm(Sale_price ~ poly(Bdrms, degree = 2)+Units+Lot_size+Bdrms+Sale_month+Fbath*Hbath*Fin_sqft, data = data_for_all)
+summary(model_7c)
+
+
+model_8 <- lm(Sale_price ~ Fin_sqft+Stories+Units+Bdrms*Fbath*Hbath+Lot_size+Sale_month+material_num, data = data_for_all)
+summary(model_8)
+
+model_9 <- lm(Sale_price ~ poly(Units, degree = 2)+Stories+Units+Bdrms*Fbath*Hbath+material_num, data = data_for_all)
+summary(model_9)
+
+model_9a <- lm(Sale_price ~ poly(Fbath*Fin_sqft, degree = 2)+Stories*Units+Bdrms+Hbath+material_num+Lot_size, data = data_for_all)
+summary(model_9a)
+```
+
+
+
+
+```{r}
+options(scipen = 999)
+
+library(caret)
+
+set.seed(123)
+
+data_for_all <- readxl::read_excel("2018-property-sales-data.xlsx", sheet = "regression_all_proptype")
+
+data_for_all$residential_num <- as.factor(data_for_all$residential_num)
+data_for_all$commercial_num <- as.factor(data_for_all$commercial_num)
+data_for_all$condominium_num <- as.factor(data_for_all$condominium_num)
+
+
+# Create an index for training and testing sets
+set.seed(1) # for reproducability
+training_index <- sample(nrow(data_for_all),
+                         size= nrow(data_for_all)*0.8)
+
+
+train_data <- data_for_all[training_index,]
+test_data <- data_for_all[-training_index,]
+
+model_1 <- lm(Sale_price~residential_num+commercial_num+condominium_num+material_num+Stories+Nr_of_rms+Fin_sqft+Units, data = train_data)
+summary(model_1
+        )
+
+model_2 <- lm(Sale_price~residential_num+commercial_num+condominium_num+material_num+Stories+Nr_of_rms+Fin_sqft+Units+Bdrms+Fbath+Hbath+Sale_month, data = train_data)
+summary(model_2)
+
+model_3 <- lm(Sale_price~residential_num+commercial_num+condominium_num+material_num+Stories+Nr_of_rms+Units+Bdrms+Fbath+Hbath+Lot_size+Sale_month, data = train_data)
+summary(model_3)
+
+model_4 <- lm(Sale_price~residential_num+commercial_num+condominium_num+material_num+Stories+Nr_of_rms+Fin_sqft+Units+Lot_size+Sale_month, data = train_data)
+summary(model_4)
+
+print(AIC(model_1))
+print(AIC(model_2))
+print(AIC(model_3))
+print(AIC(model_4))
+
+model_7 <- lm(Sale_price ~ poly(Fin_sqft, degree = 2)+Stories+Nr_of_rms+Units+Bdrms+Fbath+Hbath+Lot_size+Sale_month, data = train_data)
+summary(model_7)
+
+
+model_8 <- lm(Sale_price ~ poly(Fin_sqft, degree = 3)+Stories+Nr_of_rms+Units+Bdrms+Fbath+Hbath+Lot_size+Sale_month+residential_num+commercial_num+condominium_num+material_num, data = train_data)
+summary(model_8)
+
+model_9 <- lm(Sale_price ~ poly(Fin_sqft, degree = 3)+Stories+Nr_of_rms+Units+Bdrms+Fbath+Hbath+Lot_size+Sale_month+residential_num*commercial_num*condominium_num*material_num, data = train_data)
+summary(model_9)
+
+
+
+AIC(model_7b)
+AIC(model_7c)
+AIC(model_8)
+AIC(model_9)
+
+predicted_prices <- predict(model_9, test_data)
+head(predicted_prices)
+
+library(forecast)
+
+print(forecast::accuracy(predicted_prices, test_data$Sale_price))
+
+```
+
+
+```{r}
+options(scipen = 999)
+
+library(caret)
+
+set.seed(123)
+
+data_for_residential_only <- readxl::read_excel("2018-property-sales-data.xlsx", sheet = "regression_residential_only")
+
+
+# Create an index for training and testing sets
+set.seed(1) # for reproducability
+training_index <- sample(nrow(data_for_residential_only),
+                         size= nrow(data_for_residential_only)*0.8)
+
+
+residential_train_data <- data_for_residential_only[training_index,]
+residential_test_data <- data_for_residential_only[-training_index,]
+
+model_1 <- lm(Sale_price~material_num+Stories+Fin_sqft+Units, data = residential_train_data)
+summary(model_1
+        )
+
+model_2 <- lm(Sale_price~material_num+Stories+Fin_sqft+Units+Bdrms+Fbath+Hbath+Sale_month, data = residential_train_data)
+summary(model_2)
+
+model_3 <- lm(Sale_price~material_num+Stories+Units+Bdrms+Fbath+Hbath+Lot_size+Sale_month, data = residential_train_data)
+summary(model_3)
+
+model_4 <- lm(Sale_price~material_num+Stories+Fin_sqft+Units+Lot_size+Sale_month, data = residential_train_data)
+summary(model_4)
+
+print(AIC(model_1))
+print(AIC(model_2))
+print(AIC(model_3))
+print(AIC(model_4))
+
+model_7 <- lm(Sale_price ~ poly(Fin_sqft, degree = 2)+Stories+Units+Bdrms+Fbath+Hbath+Lot_size+Sale_month, data = residential_train_data)
+summary(model_7)
+
+
+model_8 <- lm(Sale_price ~ poly(Fin_sqft, degree = 3)+Stories+Units+Bdrms+Fbath+Hbath+Lot_size+Sale_month+material_num, data = residential_train_data)
+summary(model_8)
+
+model_9 <- lm(Sale_price ~ poly(Fin_sqft, degree = 3)+Stories+Units+Bdrms+Fbath+Hbath+Lot_size+Sale_month+material_num, data = residential_train_data)
+summary(model_9)
+
+
+
+AIC(model_7b)
+AIC(model_7c)
+AIC(model_8)
+AIC(model_9)
+
+predicted_prices <- predict(model_9, residential_test_data)
+head(predicted_prices)
+
+library(forecast)
+
+print(forecast::accuracy(predicted_prices, residential_test_data$Sale_price))
+```
+
+
